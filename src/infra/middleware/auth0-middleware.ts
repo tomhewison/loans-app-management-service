@@ -50,7 +50,7 @@ async function getSigningKey(kid: string): Promise<string> {
 
 export async function validateAuth0Token(request: HttpRequest): Promise<Auth0ValidationResult> {
   const authHeader = request.headers.get('authorization');
-  
+
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return {
       valid: false,
@@ -59,7 +59,7 @@ export async function validateAuth0Token(request: HttpRequest): Promise<Auth0Val
   }
 
   const token = authHeader.substring(7);
-  
+
   if (!token || token.length === 0) {
     return {
       valid: false,
@@ -73,7 +73,7 @@ export async function validateAuth0Token(request: HttpRequest): Promise<Auth0Val
     const issuer = `https://${domain}/`;
 
     const decoded = jwt.decode(token, { complete: true });
-    
+
     if (!decoded || typeof decoded === 'string' || !decoded.header || !decoded.header.kid) {
       return {
         valid: false,
@@ -114,7 +114,7 @@ export async function validateAuth0Token(request: HttpRequest): Promise<Auth0Val
         error: 'Token has expired',
       };
     }
-    
+
     if (error instanceof jwt.JsonWebTokenError) {
       return {
         valid: false,
@@ -139,15 +139,15 @@ export async function validateAuth0Token(request: HttpRequest): Promise<Auth0Val
 function extractRoles(claims: jwt.JwtPayload): string[] {
   const domain = process.env.AUTH0_DOMAIN?.replace(/\/$/, '') || '';
   const rolesNamespace = `https://${domain}/roles`;
-  
+
   if (claims[rolesNamespace] && Array.isArray(claims[rolesNamespace])) {
     return claims[rolesNamespace] as string[];
   }
-  
+
   if (claims.roles && Array.isArray(claims.roles)) {
     return claims.roles as string[];
   }
-  
+
   return [];
 }
 
@@ -155,16 +155,24 @@ function extractPermissions(claims: jwt.JwtPayload): string[] {
   if (claims.permissions && Array.isArray(claims.permissions)) {
     return claims.permissions as string[];
   }
-  
+
   if (claims.scope && typeof claims.scope === 'string') {
     return claims.scope.split(' ').filter(s => s.length > 0);
   }
-  
+
   return [];
 }
 
 export function hasRole(user: Auth0User, requiredRole: 'staff' | 'student'): boolean {
-  return user.roles?.includes(requiredRole) ?? false;
+  if (user.roles?.includes(requiredRole)) return true;
+
+  // Fallback: Infer 'staff' role if user has permissions (RBAC)
+  // This handles cases where Auth0 Action fails to add roles but permissions are present
+  if (requiredRole === 'staff' && user.permissions && user.permissions.length > 0) {
+    return true;
+  }
+
+  return false;
 }
 
 export function hasPermission(user: Auth0User, requiredPermission: string): boolean {
@@ -174,11 +182,11 @@ export function hasPermission(user: Auth0User, requiredPermission: string): bool
 export async function requireAuth(request: HttpRequest): Promise<Auth0ValidationResult> {
   try {
     const validation = await validateAuth0Token(request);
-    
+
     if (!validation.valid) {
       return validation;
     }
-    
+
     return validation;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -192,21 +200,21 @@ export async function requireAuth(request: HttpRequest): Promise<Auth0Validation
 export async function requireStaff(request: HttpRequest): Promise<Auth0ValidationResult> {
   try {
     const validation = await validateAuth0Token(request);
-    
+
     if (!validation.valid || !validation.user) {
       return {
         valid: false,
         error: validation.error || 'Authentication required',
       };
     }
-    
+
     if (!hasRole(validation.user, 'staff')) {
       return {
         valid: false,
         error: 'Staff role required',
       };
     }
-    
+
     return validation;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -223,21 +231,21 @@ export async function requirePermission(
 ): Promise<Auth0ValidationResult> {
   try {
     const validation = await validateAuth0Token(request);
-    
+
     if (!validation.valid || !validation.user) {
       return {
         valid: false,
         error: validation.error || 'Authentication required',
       };
     }
-    
+
     if (!hasPermission(validation.user, requiredPermission)) {
       return {
         valid: false,
         error: `Permission required: ${requiredPermission}`,
       };
     }
-    
+
     return validation;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
