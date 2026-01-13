@@ -5,7 +5,6 @@ import jwksClient from 'jwks-rsa';
 export type Auth0User = {
   sub: string; // User ID
   email?: string;
-  roles?: string[];
   permissions?: string[];
 };
 
@@ -92,7 +91,6 @@ export async function validateAuth0Token(request: HttpRequest): Promise<Auth0Val
     const user: Auth0User = {
       sub: verified.sub || '',
       email: verified.email as string | undefined,
-      roles: extractRoles(verified),
       permissions: extractPermissions(verified),
     };
 
@@ -136,21 +134,6 @@ export async function validateAuth0Token(request: HttpRequest): Promise<Auth0Val
   }
 }
 
-function extractRoles(claims: jwt.JwtPayload): string[] {
-  const domain = process.env.AUTH0_DOMAIN?.replace(/\/$/, '') || '';
-  const rolesNamespace = `https://${domain}/roles`;
-
-  if (claims[rolesNamespace] && Array.isArray(claims[rolesNamespace])) {
-    return claims[rolesNamespace] as string[];
-  }
-
-  if (claims.roles && Array.isArray(claims.roles)) {
-    return claims.roles as string[];
-  }
-
-  return [];
-}
-
 function extractPermissions(claims: jwt.JwtPayload): string[] {
   if (claims.permissions && Array.isArray(claims.permissions)) {
     return claims.permissions as string[];
@@ -161,18 +144,6 @@ function extractPermissions(claims: jwt.JwtPayload): string[] {
   }
 
   return [];
-}
-
-export function hasRole(user: Auth0User, requiredRole: 'staff' | 'student'): boolean {
-  if (user.roles?.includes(requiredRole)) return true;
-
-  // Fallback: Infer 'staff' role if user has permissions (RBAC)
-  // This handles cases where Auth0 Action fails to add roles but permissions are present
-  if (requiredRole === 'staff' && user.permissions && user.permissions.length > 0) {
-    return true;
-  }
-
-  return false;
 }
 
 export function hasPermission(user: Auth0User, requiredPermission: string): boolean {
@@ -197,33 +168,7 @@ export async function requireAuth(request: HttpRequest): Promise<Auth0Validation
   }
 }
 
-export async function requireStaff(request: HttpRequest): Promise<Auth0ValidationResult> {
-  try {
-    const validation = await validateAuth0Token(request);
 
-    if (!validation.valid || !validation.user) {
-      return {
-        valid: false,
-        error: validation.error || 'Authentication required',
-      };
-    }
-
-    if (!hasRole(validation.user, 'staff')) {
-      return {
-        valid: false,
-        error: 'Staff role required',
-      };
-    }
-
-    return validation;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return {
-      valid: false,
-      error: `Authentication configuration error: ${message}`,
-    };
-  }
-}
 
 export async function requirePermission(
   request: HttpRequest,

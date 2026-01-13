@@ -3,7 +3,7 @@ import { HttpRequest, HttpResponseInit } from '@azure/functions';
 import { getReservationQueryRepo } from '../config/appServices';
 import { getDashboardStats } from '../app/get-dashboard-stats';
 import { addCorsHeaders, handleCorsPreflight } from '../infra/middleware/cors';
-import { requireStaff } from '../infra/middleware/auth0-middleware';
+import { requirePermission } from '../infra/middleware/auth0-middleware';
 
 /**
  * Helper to serialize DashboardStats to JSON
@@ -38,7 +38,7 @@ async function handleGetDashboardStats(request: HttpRequest): Promise<HttpRespon
     }
 
     // Require staff authorization
-    const authResult = await requireStaff(request);
+    const authResult = await requirePermission(request, 'read:dashboard');
     if (!authResult.valid) {
         return addCorsHeaders({
             status: 401,

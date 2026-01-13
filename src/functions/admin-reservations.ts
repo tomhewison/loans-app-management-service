@@ -6,7 +6,7 @@ import { listOverdueReservations } from '../app/list-overdue-reservations';
 import { listPendingCollections } from '../app/list-pending-collections';
 import { ReservationStatus, ReservationSummary } from '../domain/entities/dashboard-stats';
 import { addCorsHeaders, handleCorsPreflight } from '../infra/middleware/cors';
-import { requireStaff } from '../infra/middleware/auth0-middleware';
+import { requirePermission } from '../infra/middleware/auth0-middleware';
 
 /**
  * Helper to serialize ReservationSummary to JSON
@@ -38,7 +38,7 @@ async function handleListReservations(request: HttpRequest): Promise<HttpRespons
         return handleCorsPreflight(origin);
     }
 
-    const authResult = await requireStaff(request);
+    const authResult = await requirePermission(request, 'read:reservations');
     if (!authResult.valid) {
         return addCorsHeaders({
             status: 401,
@@ -88,7 +88,7 @@ async function handleListOverdue(request: HttpRequest): Promise<HttpResponseInit
         return handleCorsPreflight(origin);
     }
 
-    const authResult = await requireStaff(request);
+    const authResult = await requirePermission(request, 'read:reservations');
     if (!authResult.valid) {
         return addCorsHeaders({
             status: 401,
@@ -132,7 +132,7 @@ async function handleListPending(request: HttpRequest): Promise<HttpResponseInit
         return handleCorsPreflight(origin);
     }
 
-    const authResult = await requireStaff(request);
+    const authResult = await requirePermission(request, 'read:reservations');
     if (!authResult.valid) {
         return addCorsHeaders({
             status: 401,
